@@ -2,6 +2,75 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 import { config } from "./config";
 import { authEndpoints } from "./endpoints";
 
+// Helper function to get token from localStorage (where Zustand persists)
+const getAuthToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    try {
+      const authData = window.localStorage.getItem('auth-storage');
+      if (authData) {
+        const parsed = JSON.parse(authData);
+        return parsed.state?.accessToken || null;
+      }
+    } catch (error) {
+      // Silent error handling for auth data parsing
+    }
+  }
+  return null;
+};
+
+// Helper function to get refresh token from localStorage (where Zustand persists)
+const getRefreshToken = (): string | null => {
+  if (typeof window !== 'undefined') {
+    try {
+      const authData = window.localStorage.getItem('auth-storage');
+      if (authData) {
+        const parsed = JSON.parse(authData);
+        return parsed.state?.refreshToken || null;
+      }
+    } catch (error) {
+      // Silent error handling for auth data parsing
+    }
+  }
+  return null;
+};
+
+// Helper function to update tokens in Zustand store
+const updateTokensInStore = (accessToken: string, refreshToken?: string): void => {
+  if (typeof window !== 'undefined') {
+    try {
+      // Import and use the auth store directly
+      const { useAuthStore } = require('@/lib/auth-store');
+      const authStore = useAuthStore.getState();
+
+      if (refreshToken) {
+        authStore.setTokens(accessToken, refreshToken);
+      } else {
+        // If no new refresh token, keep the existing one
+        const currentRefreshToken = getRefreshToken();
+        authStore.setTokens(accessToken, currentRefreshToken || '');
+      }
+    } catch (error) {
+      console.error('Failed to update tokens in store:', error);
+    }
+  }
+};
+
+// Helper function to clear auth data from localStorage
+const clearAuthData = (): void => {
+  if (typeof window !== 'undefined') {
+    try {
+      // Import and use the auth store directly
+      const { useAuthStore } = require('@/lib/auth-store');
+      const authStore = useAuthStore.getState();
+      authStore.logout();
+    } catch (error) {
+      console.error('Failed to clear auth data:', error);
+      // Fallback to manual localStorage clearing
+      window.localStorage.removeItem('auth-storage');
+    }
+  }
+};
+
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
   baseURL: config.api.baseUrl,
@@ -11,14 +80,11 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Debug: Log the base URL being used
-console.log("API Client initialized with base URL:", config.api.baseUrl);
-
 // Request interceptor
 apiClient.interceptors.request.use(
   (axiosConfig) => {
-    // Add auth token if available
-    const token = localStorage.getItem(config.auth.tokenKey);
+    // Add auth token if available from localStorage
+    const token = getAuthToken();
     if (token) {
       axiosConfig.headers.Authorization = `Bearer ${token}`;
     }
@@ -37,38 +103,52 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle common errors
+    // Handle token expiration (401 with TOKEN_EXPIRED code)
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+      // Check if it's specifically a token expiration error
+      const isTokenExpired = error.response?.data?.code === 'TOKEN_EXPIRED' ||
+                            error.response?.data?.message?.includes('expired');
 
-      try {
-        // Try to refresh the token
-        const refreshToken = localStorage.getItem(config.auth.refreshTokenKey);
-        if (refreshToken) {
-          const response = await axios.post(authEndpoints.refresh(), {
-            refreshToken,
-          });
+      if (isTokenExpired) {
+        originalRequest._retry = true;
 
-          if (response.data.accessToken) {
-            localStorage.setItem(
-              config.auth.tokenKey,
-              response.data.accessToken
-            );
-            originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
-            return apiClient(originalRequest);
+        try {
+          // Get refresh token from localStorage
+          const refreshToken = getRefreshToken();
+          if (refreshToken) {
+            // Call the refresh endpoint with the exact structure you specified
+            const response = await fetch(`${config.api.baseUrl}/api/v1/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+
+              if (data.accessToken) {
+                // Update both tokens in localStorage
+                updateTokensInStore(data.accessToken, data.refreshToken);
+
+                // Update the request headers and retry
+                originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+                return apiClient(originalRequest);
+              }
+            }
           }
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
         }
-      } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect
-        localStorage.removeItem(config.auth.tokenKey);
-        localStorage.removeItem(config.auth.refreshTokenKey);
-        window.location.href = "/";
-        return Promise.reject(refreshError);
       }
+
+      // If refresh failed or no refresh token, clear auth data and redirect to login
+      clearAuthData();
+      window.location.href = "/";
+      return Promise.reject(error);
     }
 
     if (error.response?.status === 500) {
-      console.error("Server error:", error.response.data);
+      // Server error occurred
     }
 
     return Promise.reject(error);

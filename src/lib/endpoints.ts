@@ -209,12 +209,20 @@ export function getEndpointByPath(path: string): string | null {
   for (const endpoint of allEndpoints) {
     if (typeof endpoint === "function") {
       try {
-        const url = endpoint();
-        if (url.includes(path)) {
-          return url;
+        // Check if the function has parameters by looking at its length
+        if (endpoint.length === 0) {
+          // Function with no parameters - call safely
+          const url = (endpoint as () => string)();
+          if (url.includes(path)) {
+            return url;
+          }
+        } else {
+          // Function with parameters - skip for now as we don't have context
+          continue;
         }
       } catch {
         // Skip endpoints that require parameters
+        continue;
       }
     }
   }

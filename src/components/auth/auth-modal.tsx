@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,12 +35,13 @@ import { toast } from "sonner";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialMode?: "signin" | "signup";
 }
 
 type AuthMode = "signin" | "signup";
 
-export function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const [mode, setMode] = useState<AuthMode>("signin");
+export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModalProps) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -53,6 +54,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   // API hooks
   const login = useLogin();
   const register = useRegister();
+
+  // Update mode when initialMode changes
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   const handleInputChange = useCallback((field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -83,18 +89,18 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             password: formData.password,
           };
 
-          await register.mutateAsync(signupData);
+          await register.mutate(signupData);
           toast.success("Account created successfully!");
           onClose();
           resetForm();
         } else {
           // Handle signin
           const signinData = {
-            email: formData.loginIdentifier, // Assuming loginIdentifier is email for now
+            identifier: formData.loginIdentifier,
             password: formData.password,
           };
-
-          await login.mutateAsync(signinData);
+          console.log(signinData);
+          await login.mutate(signinData);
           toast.success("Logged in successfully!");
           onClose();
           resetForm();
@@ -321,10 +327,10 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
             <Button
               type="submit"
-              disabled={login.isPending || register.isPending}
+              disabled={login.isLoading || register.isLoading}
               className="w-full mt-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white shadow-lg shadow-cyan-500/25 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {login.isPending || register.isPending ? (
+              {login.isLoading || register.isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   {mode === "signin" ? "Signing In..." : "Creating Account..."}

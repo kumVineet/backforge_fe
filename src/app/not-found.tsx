@@ -12,19 +12,10 @@ export default function NotFound() {
     backgroundColor: "bg-gradient-to-r from-slate-900/50 to-gray-900/50",
     logoText: "BF",
     content: (
-      <div className="flex items-center justify-between w-full">
-        <div className="flex-1"></div>
+      <div className="flex items-center justify-center w-full">
         <div className="flex flex-col items-center text-center">
           <h1 className="text-2xl font-bold text-white">Page Not Found</h1>
           <p className="text-gray-200">This feature is coming soon</p>
-        </div>
-        <div className="flex-1 flex justify-end">
-          <Link href="/">
-            <Button className="bg-gradient-to-r from-slate-500 to-gray-600 hover:from-slate-600 hover:to-gray-700 text-white shadow-lg shadow-slate-500/25 px-8 py-3 text-lg">
-              <Home className="w-6 h-6 mr-2" />
-              Go Home
-            </Button>
-          </Link>
         </div>
       </div>
     ),

@@ -60,7 +60,7 @@ export default function Home() {
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-10 py-4 text-xl font-semibold shadow-2xl shadow-cyan-500/25 border-0 transition-all duration-300 transform hover:scale-105"
               >
                 <Rocket className="mr-3 w-6 h-6" />
-                Get Started
+                Sign In
                 <ArrowRight className="ml-3 w-6 h-6" />
               </Button>
               <Button
