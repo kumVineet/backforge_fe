@@ -15,8 +15,6 @@ import { AuthModal } from '@/components/auth';
 
 export default function GalleryPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<Array<{
     id: string;
     file: File;
