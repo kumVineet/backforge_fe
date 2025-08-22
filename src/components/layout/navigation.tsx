@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuthStore } from "@/lib/auth-store";
+import { useSocket } from "@/hooks";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,12 @@ export function Navigation({ customization }: NavigationProps) {
   const pathname = usePathname();
   const { user, isAuthenticated } = useAuthStore();
   const { logout: logoutUser } = useLogout();
+
+  // Only connect to socket on pages that need it (like chat)
+  const isSocketPage = pathname === "/chat";
+  const socketHook = isSocketPage ? useSocket() : null;
+  const isConnected = socketHook?.isConnected || false;
+  const isSocketAuthenticated = socketHook?.isAuthenticated || false;
 
   const isHomePage = pathname === "/";
   const hasCustomization = !!customization;
@@ -139,6 +146,12 @@ export function Navigation({ customization }: NavigationProps) {
                         }
                       </AvatarFallback>
                     </Avatar>
+                    {/* Socket Status Indicator */}
+                    {isAuthenticated && (
+                      <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                        isConnected && isSocketAuthenticated ? 'bg-green-500' : 'bg-red-500'
+                      }`} title={isConnected && isSocketAuthenticated ? 'Socket Connected & Authenticated' : 'Socket Disconnected'} />
+                    )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-64 p-2 mt-2 bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl shadow-black/20 rounded-xl" align="end" forceMount>
@@ -146,15 +159,22 @@ export function Navigation({ customization }: NavigationProps) {
                     <>
                       {/* User Info Section */}
                       <div className="flex items-center gap-3 p-3 mb-3 mt-3 bg-gradient-to-r from-cyan-50/50 to-blue-50/50 rounded-lg border border-cyan-100/30">
-                        <Avatar className="h-12 w-12 border-2 border-cyan-200/50">
+                        <Avatar className="h-12 w-12 border-2 border-cyan-200/50 relative">
                           <AvatarImage src={user?.profileImage} alt={user?.name} />
                           <AvatarFallback className="bg-gradient-to-r from-cyan-400 to-blue-500 text-white font-semibold text-lg">
                             {user?.name ? user.name.charAt(0).toUpperCase() : <User className="w-6 h-6" />}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="flex flex-col space-y-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{user?.name}</p>
-                          <p className="text-sm text-gray-600 truncate">{user?.email}</p>
+                        <div className="flex flex-col justify-center min-w-0 h-12">
+                          <p className="font-semibold text-gray-900 truncate text-sm leading-tight">{user?.name}</p>
+                          <p className="text-xs text-gray-600 truncate leading-tight">{user?.email}</p>
+                          {/* Online Status */}
+                          {isConnected && isSocketAuthenticated && (
+                            <div className="text-xs text-green-600 font-medium flex items-center leading-tight">
+                              <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></div>
+                              Online
+                            </div>
+                          )}
                         </div>
                       </div>
 
