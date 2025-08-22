@@ -99,17 +99,23 @@ export function AuthModal({ isOpen, onClose, initialMode = "signin" }: AuthModal
             identifier: formData.loginIdentifier,
             password: formData.password,
           };
-          console.log(signinData);
           await login.mutate(signinData);
           toast.success("Logged in successfully!");
           onClose();
           resetForm();
         }
       } catch (error: any) {
-        toast.error(
-          error?.response?.data?.message ||
-            "An error occurred. Please try again."
-        );
+        let errorMessage = "An error occurred. Please try again.";
+
+        if (error?.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error?.message) {
+          errorMessage = error.message;
+        } else if (error?.response?.status) {
+          errorMessage = `Server error (${error.response.status})`;
+        }
+
+        toast.error(errorMessage);
       }
     },
     [mode, formData, login, register, onClose, resetForm]

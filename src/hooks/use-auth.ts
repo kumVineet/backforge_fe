@@ -1,6 +1,6 @@
 import { useAuthStore, User } from "@/lib/auth-store";
 import { authEndpoints } from "@/lib/endpoints";
-import apiClient from "@/lib/api-client";
+import { api } from "@/lib/api-client";
 
 // Types
 export interface LoginCredentials {
@@ -38,21 +38,35 @@ export function useLogin() {
   const handleLogin = async (credentials: LoginCredentials): Promise<AuthResponse> => {
     setLoading(true);
     try {
-      const response = await apiClient.post(authEndpoints.login(), credentials);
-      const data = response.data;
+      const response = await api.post(authEndpoints.login(), credentials);
 
-      // Extract tokens from the nested structure
-      const accessToken = data.tokens?.accessToken;
-      const refreshToken = data.tokens?.refreshToken;
+      // Since api.post automatically extracts response.data, response is already the data
+      const data = response;
+
+      // Check if the response has the expected structure
+      if (!data || !data.data) {
+        throw new Error('Invalid response structure from server');
+      }
+
+      // Extract user and tokens from the nested structure
+      const user = data.data.user;
+      const accessToken = data.data.tokens?.accessToken;
+      const refreshToken = data.data.tokens?.refreshToken;
+
+      if (!user) {
+        throw new Error('No user data received from server');
+      }
 
       if (!accessToken || !refreshToken) {
         throw new Error('No tokens received from server');
       }
 
-      login(data.user, accessToken, refreshToken);
+      // Call the login function from the store
+      login(user, accessToken, refreshToken);
       setLoading(false);
+
       return {
-        user: data.user,
+        user,
         accessToken,
         refreshToken
       };
@@ -71,21 +85,35 @@ export function useRegister() {
   const handleRegister = async (credentials: RegisterCredentials): Promise<AuthResponse> => {
     setLoading(true);
     try {
-      const response = await apiClient.post(authEndpoints.register(), credentials);
-      const data = response.data;
+      const response = await api.post(authEndpoints.register(), credentials);
 
-      // Extract tokens from the nested structure
-      const accessToken = data.tokens?.accessToken;
-      const refreshToken = data.tokens?.refreshToken;
+      // Since api.post automatically extracts response.data, response is already the data
+      const data = response;
+
+      // Check if the response has the expected structure
+      if (!data || !data.data) {
+        throw new Error('Invalid response structure from server');
+      }
+
+      // Extract user and tokens from the nested structure
+      const user = data.data.user;
+      const accessToken = data.data.tokens?.accessToken;
+      const refreshToken = data.data.tokens?.refreshToken;
+
+      if (!user) {
+        throw new Error('No user data received from server');
+      }
 
       if (!accessToken || !refreshToken) {
         throw new Error('No tokens received from server');
       }
 
-      login(data.user, accessToken, refreshToken);
+      // Call the login function from the store
+      login(user, accessToken, refreshToken);
       setLoading(false);
+
       return {
-        user: data.user,
+        user,
         accessToken,
         refreshToken
       };
@@ -102,8 +130,9 @@ export function useUpdateProfile() {
   const { setUser } = useAuthStore();
 
   const handleUpdateProfile = async (profileData: UpdateProfileData): Promise<User> => {
-    const response = await apiClient.patch(authEndpoints.profile(), profileData);
-    const data = response.data;
+    const response = await api.patch(authEndpoints.profile(), profileData);
+    // Since api.patch automatically extracts response.data, response is already the data
+    const data = response;
     setUser(data);
     return data;
   };
@@ -118,7 +147,7 @@ export function useLogout() {
     try {
       // Call the logout API with refresh token
       if (refreshToken) {
-        await apiClient.post(authEndpoints.logout(), {
+        await api.post(authEndpoints.logout(), {
           refreshToken: refreshToken
         });
       }
@@ -144,10 +173,11 @@ export function useRefreshToken() {
       throw new Error('No refresh token available');
     }
 
-    const response = await apiClient.post(authEndpoints.refresh(), {
+    const response = await api.post(authEndpoints.refresh(), {
       refreshToken: refreshToken
     });
-    const data = response.data;
+    // Since api.post automatically extracts response.data, response is already the data
+    const data = response;
 
     // Update tokens in store
     setTokens(data.accessToken, data.refreshToken || refreshToken);

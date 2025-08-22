@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient from '@/lib/api-client';
-import { uploadKeys, UploadFile } from '../queries/use-uploads';
+import { api } from '@/lib/api-client';
+import { uploadKeys, UploadFile } from '@/hooks/queries/use-uploads';
 
 // Function to determine file category based on MIME type
 const getFileCategory = (mimeType: string): string => {
@@ -30,7 +30,7 @@ export const useUploadFile = () => {
     mutationFn: async (file: File): Promise<UploadFile> => {
       try {
         // Step 1: Get presigned upload URL
-        const presignedResponse = await apiClient.post('/api/v1/uploads/presigned-upload-url', {
+        const presignedResponse = await api.post('/api/v1/uploads/presigned-upload-url', {
           fileName: file.name,
           fileType: file.type,
           fileSize: file.size
@@ -58,7 +58,7 @@ export const useUploadFile = () => {
         const fileCategory = getFileCategory(file.type);
         console.log('File category detected:', { mimeType: file.type, category: fileCategory });
 
-        const metadataResponse = await apiClient.post('/api/v1/uploads/store-metadata', {
+        const metadataResponse = await api.post('/api/v1/uploads/store-metadata', {
           fileName: file.name,
           fileType: file.type,
           fileSize: file.size,
@@ -92,37 +92,21 @@ export const useDeleteFile = () => {
   return useMutation({
     mutationFn: async (fileId: string | number): Promise<{ message: string }> => {
       try {
-        const response = await apiClient.delete(`/api/v1/uploads/file/${fileId}`);
+        const response = await api.delete(`/api/v1/uploads/files/${fileId}`);
 
-        // Axios automatically throws on non-2xx status codes, so we just return the data
-        return response.data;
+        return response;
       } catch (error) {
-        console.error('Delete failed:', error);
+        console.error('Delete failed 1:', error);
         throw error;
       }
     },
     onSuccess: (data, fileId) => {
-      console.log(data.message); // "File deleted successfully"
-
-      // Optimistically update the cache by removing the deleted file
-      queryClient.setQueryData(uploadKeys.myFiles(), (oldData: any) => {
-        if (!oldData?.files) return oldData;
-
-        return {
-          ...oldData,
-          files: oldData.files.filter((file: UploadFile) => file.id !== fileId),
-          pagination: {
-            ...oldData.pagination,
-            total: Math.max(0, oldData.pagination.total - 1)
-          }
-        };
-      });
-
+      console.log(data.message);
       // Also invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: uploadKeys.myFiles() });
     },
     onError: (error) => {
-      console.error('Delete failed:', error);
+      console.error('Delete failed 2:', error);
     },
   });
 };
@@ -133,7 +117,7 @@ export const useUpdateFile = () => {
 
   return useMutation({
     mutationFn: async ({ fileId, updates }: { fileId: string | number; updates: Partial<UploadFile> }): Promise<UploadFile> => {
-      const response = await apiClient.put(`/api/v1/uploads/file/${fileId}`, updates);
+      const response = await api.put(`/api/v1/uploads/file/${fileId}`, updates);
       return response.data;
     },
     onSuccess: () => {

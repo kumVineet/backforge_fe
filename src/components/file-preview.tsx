@@ -43,13 +43,15 @@ export default function FilePreview({ file, isOpen, onClose }: FilePreviewProps)
     }
   };
 
-  const fileTypeInfo = getFileTypeInfo(file.mimeType, file.category);
-  const fileSize = file.size ? (parseInt(file.size.toString()) / 1024 / 1024).toFixed(2) : 'Unknown';
+  const fileTypeInfo = getFileTypeInfo(file.mime_type, file.category);
+  const fileSize = file.file_size ? (parseInt(file.file_size) / 1024 / 1024).toFixed(2) : 'Unknown';
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = file.downloadUrl || file.url;
-    link.download = file.originalName || file.filename;
+    // Use cloud_url if available, otherwise construct from cloud_key
+    const downloadUrl = file.presignedUrl ||  '';
+    link.href = downloadUrl;
+    link.download = file.original_name || file.filename;
     link.target = '_blank';
     document.body.appendChild(link);
     link.click();
@@ -69,73 +71,89 @@ export default function FilePreview({ file, isOpen, onClose }: FilePreviewProps)
   };
 
   const renderPreview = () => {
-    if (file.category === 'image' || file.mimeType?.startsWith('image/')) {
+    // Construct preview URL from available fields
+    const previewUrl = file.presignedUrl ||  '';
+
+    if (!previewUrl) {
+      return (
+        <div className="flex justify-center items-center h-96 bg-gray-100 rounded-lg">
+          <div className="text-center text-gray-500">
+            <p>Preview not available</p>
+            <p className="text-sm">File: {file.original_name || file.filename}</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (file.category === 'image' || file.mime_type?.startsWith('image/')) {
       return (
         <div className="flex justify-center">
           <img
-            src={file.url}
-            alt={file.originalName}
+            src={previewUrl}
+            alt={file.original_name}
             className="max-w-full max-h-96 object-contain rounded-lg shadow-lg"
           />
         </div>
       );
     }
 
-    if (file.category === 'video' || file.mimeType?.startsWith('video/')) {
+    if (file.category === 'video' || file.mime_type?.startsWith('video/')) {
       return (
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center">
           <video
-            src={file.url}
             controls
             className="max-w-full max-h-96 rounded-lg shadow-lg"
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            muted={isMuted}
-          />
+            preload="metadata"
+            onLoadStart={() => console.log('Video loading started')}
+            onLoadedData={() => console.log('Video data loaded')}
+            onCanPlay={() => console.log('Video can play')}
+            crossOrigin="anonymous"
+          >
+            <source src={previewUrl} type={file.mime_type} />
+            <source src={previewUrl} type="video/mp4" />
+            <source src={previewUrl} type="video/quicktime" />
+            Your browser does not support the video tag.
+          </video>
+
         </div>
       );
     }
 
-    if (file.category === 'audio' || file.mimeType?.startsWith('audio/')) {
+    if (file.category === 'audio' || file.mime_type?.startsWith('audio/')) {
       return (
         <div className="flex justify-center">
           <audio
-            src={file.url}
             controls
-            className="w-full max-w-md"
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            muted={isMuted}
-          />
+            className="max-w-full rounded-lg shadow-lg"
+            preload="metadata"
+          >
+            <source src={previewUrl} type={file.mime_type} />
+            Your browser does not support the audio tag.
+          </audio>
         </div>
       );
     }
 
     // For documents, show a preview if possible, otherwise show file info
-    if (file.mimeType === 'application/pdf') {
+    if (file.mime_type === 'application/pdf') {
       return (
         <div className="flex justify-center">
           <iframe
-            src={`${file.url}#toolbar=0`}
+            src={`${previewUrl}#toolbar=0`}
             className="w-full h-96 rounded-lg shadow-lg"
-            title={file.originalName}
+            title={file.original_name}
           />
         </div>
       );
     }
 
-    // Generic document view
+    // Default fallback for other file types
     return (
-      <div className="text-center py-16">
-        <div className="w-24 h-24 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-blue-500/30">
-          <svg className="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
+      <div className="flex justify-center items-center h-96 bg-gray-100 rounded-lg">
+        <div className="text-center text-gray-500">
+          <p>Preview not available for this file type</p>
+          <p className="text-sm">File: {file.original_name || file.filename}</p>
         </div>
-        <h3 className="text-xl font-medium text-white mb-2">Document Preview</h3>
-        <p className="text-gray-400 mb-4">
-          This document type doesn't support preview. Click download to view.
-        </p>
       </div>
     );
   };
@@ -147,7 +165,7 @@ export default function FilePreview({ file, isOpen, onClose }: FilePreviewProps)
           <div className="flex items-center space-x-3">
             <div className={`w-3 h-3 rounded-full ${fileTypeInfo.color.replace('text-', 'bg-')}`}></div>
             <DialogTitle className="text-white text-lg font-semibold">
-              {file.originalName || file.filename}
+              {file.original_name || file.filename}
             </DialogTitle>
           </div>
           <Button
@@ -170,7 +188,7 @@ export default function FilePreview({ file, isOpen, onClose }: FilePreviewProps)
             <div>
               <span className="text-gray-500">Uploaded:</span>
               <p className="font-medium">
-                {file.createdAt ? new Date(file.createdAt).toLocaleDateString() : 'Unknown'}
+                {file.created_at ? new Date(file.created_at).toLocaleDateString() : 'Unknown'}
               </p>
             </div>
             <div>

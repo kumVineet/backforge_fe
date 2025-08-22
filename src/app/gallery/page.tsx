@@ -53,8 +53,8 @@ export default function GalleryPage() {
   });
 
   // Extract files and pagination from response
-  const userFiles = filesResponse?.files || [];
-  const pagination = filesResponse?.pagination;
+  const userFiles = filesResponse?.data?.files || [];
+  const pagination = filesResponse?.data?.pagination;
 
   // Show welcome message when user becomes authenticated
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function GalleryPage() {
   const deleteFile = useDeleteFile();
 
   // Pagination logic - use API pagination if available, fallback to client-side
-  const totalPages = pagination?.pages || Math.ceil(userFiles.length / 20);
+  const totalPages = pagination?.totalPages || Math.ceil(userFiles.length / 20);
   const currentFiles = userFiles;
 
   const handlePageChange = (page: number) => {
@@ -576,7 +576,7 @@ export default function GalleryPage() {
             // Gallery Grid with Files
             <div className="space-y-6">
               <h3 className="text-2xl font-bold text-white text-center mb-8">
-                Your Gallery ({pagination?.total || userFiles.length} files)
+                Your Gallery ({pagination?.totalFiles || userFiles.length} files)
               </h3>
 
               {/* Gallery Grid */}
@@ -717,7 +717,7 @@ export default function GalleryPage() {
 
                 {/* File Cards */}
                 {currentFiles.map((file) => {
-                  const fileTypeInfo = getFileTypeInfo(file.mimeType, file.category);
+                  const fileTypeInfo = getFileTypeInfo(file.mime_type, file.category);
 
                   return (
                     <Card
@@ -744,7 +744,7 @@ export default function GalleryPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (isAuthenticated) {
-                                      handleDeleteFile(file.id, file.originalName);
+                                      handleDeleteFile(file.id, file.original_name);
                                     } else {
                                       showToast('Please log in to delete files', 'error');
                                     }
@@ -771,17 +771,17 @@ export default function GalleryPage() {
                                   </span>
                                 </div>
                                 <span className="text-xs text-gray-400">
-                                  {file.size ? (parseInt(file.size.toString()) / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown size'}
+                                  {file.file_size ? (parseInt(file.file_size) / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown size'}
                                 </span>
                               </div>
 
                               <h4 className="font-medium text-white text-sm mb-2 truncate">
-                                {file.originalName || file.filename || 'Untitled'}
+                                {file.original_name || file.filename || 'Untitled'}
                               </h4>
 
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-gray-400">
-                                  {file.createdAt ? new Date(file.createdAt).toLocaleDateString() : 'Unknown date'}
+                                  {file.created_at ? new Date(file.created_at).toLocaleDateString() : 'Unknown date'}
                                 </span>
                               </div>
                             </div>
@@ -799,16 +799,16 @@ export default function GalleryPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center space-x-3 mb-1">
                                   <h4 className="font-medium text-white text-sm truncate">
-                                    {file.originalName || file.filename || 'Untitled'}
+                                    {file.original_name || file.filename || 'Untitled'}
                                   </h4>
                                   <Badge variant="secondary" className="text-xs">
                                     {fileTypeInfo.type}
                                   </Badge>
                                 </div>
                                 <div className="flex items-center space-x-4 text-xs text-gray-400">
-                                  <span>{file.size ? (parseInt(file.size.toString()) / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown size'}</span>
+                                  <span>{file.file_size ? (parseInt(file.file_size) / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown size'}</span>
                                   <span>•</span>
-                                  <span>{file.createdAt ? new Date(file.createdAt).toLocaleDateString() : 'Unknown date'}</span>
+                                  <span>{file.created_at ? new Date(file.created_at).toLocaleDateString() : 'Unknown date'}</span>
                                 </div>
                               </div>
 
@@ -821,7 +821,7 @@ export default function GalleryPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (isAuthenticated) {
-                                      handleDeleteFile(file.id, file.originalName);
+                                      handleDeleteFile(file.id, file.original_name);
                                     } else {
                                       showToast('Please log in to delete files', 'error');
                                     }
@@ -846,24 +846,24 @@ export default function GalleryPage() {
               </div>
 
               {/* Pagination - Only show if API provides pagination data */}
-              {pagination && pagination.pages > 1 && (
+              {pagination && pagination.totalPages > 1 && (
                 <div className="flex justify-center space-x-2 mt-8">
                   <Button
                     variant="outline"
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page === 1}
+                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                    disabled={pagination.currentPage === 1}
                     className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
                   >
                     Previous
                   </Button>
 
-                  {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
+                  {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
                     <Button
                       key={page}
-                      variant={pagination.page === page ? "default" : "outline"}
+                      variant={pagination.currentPage === page ? "default" : "outline"}
                       onClick={() => handlePageChange(page)}
                       className={
-                        pagination.page === page
+                        pagination.currentPage === page
                           ? "bg-purple-500 text-white"
                           : "border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
                       }
@@ -874,8 +874,8 @@ export default function GalleryPage() {
 
                   <Button
                     variant="outline"
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page === pagination.pages}
+                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    disabled={pagination.currentPage === pagination.totalPages}
                     className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
                   >
                     Next

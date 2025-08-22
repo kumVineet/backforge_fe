@@ -9,8 +9,12 @@ export interface User {
   mobile_number?: string;
   profileImage?: string;
   role: string;
-  createdAt: string;
-  updatedAt: string;
+  refresh_token?: string | null;
+  refresh_token_expires_at?: string | null;
+  is_active?: boolean;
+  last_login?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AuthState {

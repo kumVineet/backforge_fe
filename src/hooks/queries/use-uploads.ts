@@ -1,35 +1,41 @@
 import { useQuery } from '@tanstack/react-query';
-import apiClient from '@/lib/api-client';
+import { api } from '@/lib/api-client';
 
-// Types for upload data
+// Types for upload data - matching the new API response structure
 export interface UploadFile {
   id: string | number;
+  user_id: number;
+  original_name: string;
   filename: string;
-  originalName: string;
-  mimeType: string;
-  size: string | number;
+  file_path: string | null;
+  file_size: string;
+  mime_type: string;
   category: string;
   title: string | null;
   description: string | null;
-  tags: string[];
-  isPublic: boolean;
-  storageType: string;
-  cloudUrl: string | null;
-  s3Key: string;
-  downloadUrl: string;
-  createdAt: string;
-  updatedAt: string;
-  url: string;
+  tags: string[] | null;
+  is_public: boolean;
+  storage_type: string;
+  cloud_key: string;
+  created_at: string;
+  updated_at: string;
+  url?: string;
+  download_url?: string;
+  presignedUrl?: string;
 }
 
-// API response structure
+// API response structure - matching the new nested structure
 export interface MyFilesResponse {
-  files: UploadFile[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
+  success: boolean;
+  data: {
+    files: UploadFile[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalFiles: string;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+    };
   };
 }
 
@@ -45,8 +51,8 @@ export const useMyFiles = (options?: { enabled?: boolean }) => {
   return useQuery({
     queryKey: uploadKeys.myFiles(),
     queryFn: async (): Promise<MyFilesResponse> => {
-      const response = await apiClient.get('/api/v1/uploads/my-files');
-      return response.data;
+      const response = await api.get('/api/v1/uploads/my-files');
+      return response;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 3,
@@ -59,7 +65,7 @@ export const useFile = (id: string | number) => {
   return useQuery({
     queryKey: uploadKeys.file(id),
     queryFn: async (): Promise<UploadFile> => {
-      const response = await apiClient.get(`/api/v1/uploads/${id}`);
+      const response = await api.get(`/api/v1/uploads/${id}`);
       return response.data;
     },
     enabled: !!id,

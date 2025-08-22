@@ -22,13 +22,21 @@ import {
   Rocket,
   CheckCircle,
   Code,
+  User,
+  LogOut,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { AuthModal } from "@/components/auth/auth-modal";
 import { useState } from "react";
+import { useAuthStore } from "@/lib/auth-store";
 
 export default function Home() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const { user, isAuthenticated, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
     <Layout>
@@ -53,24 +61,76 @@ export default function Home() {
               </span>{" "}
               with powerful tools and beautiful UI components.
             </p>
-            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-              <Button
-                size="lg"
-                onClick={() => setIsAuthModalOpen(true)}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-10 py-4 text-xl font-semibold shadow-2xl shadow-cyan-500/25 border-0 transition-all duration-300 transform hover:scale-105"
-              >
-                <Rocket className="mr-3 w-6 h-6" />
-                Sign In
-                <ArrowRight className="ml-3 w-6 h-6" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="px-10 py-4 text-xl font-semibold border-2 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 backdrop-blur-sm transition-all duration-300"
-              >
-                View Documentation
-              </Button>
-            </div>
+
+            {/* Conditional Content Based on Auth Status */}
+            {!isAuthenticated ? (
+              // Unauthenticated User - Show Sign In Button
+              <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
+                <Button
+                  size="lg"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-10 py-4 text-xl font-semibold shadow-2xl shadow-cyan-500/25 border-0 transition-all duration-300 transform hover:scale-105"
+                >
+                  <Rocket className="mr-3 w-6 h-6" />
+                  Sign In
+                  <ArrowRight className="ml-3 w-6 h-6" />
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="px-10 py-4 text-xl font-semibold border-2 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 backdrop-blur-sm transition-all duration-300"
+                >
+                  View Documentation
+                </Button>
+              </div>
+            ) : (
+              // Authenticated User - Show Welcome Message and Actions
+              <div className="flex flex-col items-center mb-16">
+                <div className="flex items-center space-x-4 mb-6 p-4 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-2xl border border-cyan-500/20">
+                  <Avatar className="w-16 h-16 border-2 border-cyan-500/30">
+                    <AvatarImage src={user?.profileImage} />
+                    <AvatarFallback className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xl font-bold">
+                      {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="text-left">
+                    <h3 className="text-2xl font-bold text-white">
+                      Welcome back, {user?.name}!
+                    </h3>
+                    <p className="text-cyan-200">
+                      Ready to continue building amazing things?
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <Button
+                    size="lg"
+                    onClick={() => (window.location.href = "/chat")}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 px-8 py-3 text-lg font-semibold shadow-2xl shadow-cyan-500/25 border-0 transition-all duration-300 transform hover:scale-105"
+                  >
+                    <User className="mr-2 w-5 h-5" />
+                    Go to Chat
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={() => (window.location.href = "/weather")}
+                    className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 px-8 py-3 text-lg font-semibold shadow-2xl shadow-blue-500/25 border-0 transition-all duration-300 transform hover:scale-105"
+                  >
+                    <Zap className="mr-2 w-5 h-5" />
+                    Check Weather
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={() => (window.location.href = "/gallery")}
+                    className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 px-8 py-3 text-lg font-semibold shadow-2xl shadow-blue-500/25 border-0 transition-all duration-300 transform hover:scale-105"
+                  >
+                    <LogOut className="mr-2 w-5 h-5" />
+                    Gallery
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Tech Stack */}
             <div className="flex justify-center items-center space-x-8 text-gray-400">
