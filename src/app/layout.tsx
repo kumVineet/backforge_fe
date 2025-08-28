@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { QueryProvider } from "@/components/providers";
+import { QueryProvider, SocketProvider, ChatProvider } from "@/components/providers";
 import { Toaster } from "sonner";
 
 const geistSans = Geist({
@@ -30,13 +30,17 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <QueryProvider>
-          {children}
-          <Toaster
-            position="top-right"
-            richColors
-            closeButton
-            duration={4000}
-          />
+          <SocketProvider>
+            <ChatProvider>
+              {children}
+              <Toaster
+                position="top-right"
+                richColors
+                closeButton
+                duration={4000}
+              />
+            </ChatProvider>
+          </SocketProvider>
         </QueryProvider>
       </body>
     </html>

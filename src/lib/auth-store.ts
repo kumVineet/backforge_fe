@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { refreshAuthToken } from './token-refresh';
 
 
 export interface User {
@@ -15,6 +16,34 @@ export interface User {
   last_login?: string;
   created_at: string;
   updated_at: string;
+  // Profile fields
+  bio?: string;
+  date_of_birth?: string;
+  gender?: string;
+  location?: string;
+  website?: string;
+  occupation?: string;
+  company?: string;
+  phone?: string;
+  address?: string;
+  github?: string;
+  linkedin?: string;
+  twitter?: string;
+  preferences?: {
+    theme: 'light' | 'dark';
+    notifications: boolean;
+    privacy: 'public' | 'friends' | 'private';
+  };
+  privacy_settings?: {
+    profile_visibility: 'public' | 'friends' | 'private';
+    contact_visibility: 'public' | 'friends' | 'private';
+    location_visibility: 'public' | 'friends' | 'private';
+  };
+  education?: {
+    degree: string;
+    institution: string;
+    year: number;
+  };
 }
 
 interface AuthState {
@@ -32,6 +61,8 @@ interface AuthActions {
   setLoading: (loading: boolean) => void;
   logout: () => void;
   login: (user: User, accessToken: string, refreshToken: string) => void;
+  updateProfile: (profileData: Partial<User>) => void;
+  refreshAuthToken: () => Promise<boolean>;
 }
 
 type AuthStore = AuthState & AuthActions;
@@ -71,6 +102,43 @@ export const useAuthStore = create<AuthStore>()(
           refreshToken,
           isAuthenticated: true,
         });
+      },
+
+      updateProfile: (profileData) => {
+        const currentUser = get().user;
+        if (currentUser) {
+          set({
+            user: { ...currentUser, ...profileData }
+          });
+        }
+      },
+
+      refreshAuthToken: async () => {
+        const currentRefreshToken = get().refreshToken;
+        if (!currentRefreshToken) {
+          return false;
+        }
+
+        try {
+          set({ isLoading: true });
+
+          const result = await refreshAuthToken(currentRefreshToken);
+
+          if (result) {
+            set({
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken || currentRefreshToken,
+            });
+            return true;
+          }
+
+          return false;
+        } catch (error) {
+          console.error('Token refresh failed:', error);
+          return false;
+        } finally {
+          set({ isLoading: false });
+        }
       },
     }),
     {

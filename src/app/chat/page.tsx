@@ -1,81 +1,145 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Layout } from "@/components/layout";
-import { MessageCircle, Send, Users, Search, Plus, MoreHorizontal, Wifi, WifiOff, AlertCircle } from "lucide-react";
-import { useSocket } from "@/hooks";
+import { MessageCircle } from "lucide-react";
 import { useAuthStatus } from "@/hooks";
+import { useUserSearch, useConversations } from "@/hooks/queries";
+import { useCreatePrivateConversation } from "@/hooks/mutations";
 import { AuthModal } from "@/components/auth";
-
-interface ChatMessage {
-  id: string;
-  userId: string;
-  username: string;
-  message: string;
-  timestamp: Date;
-  isOwn: boolean;
-}
+import { SearchControls, UserSearchResults, ConversationsList, ChatMessages } from "@/components/chat";
+import { useChat, ChatMessage } from "@/contexts";
+import { useSocketConnection } from "@/contexts";
 
 export default function ChatPage() {
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [selectedChat, setSelectedChat] = useState('general');
+  const [searchType, setSearchType] = useState<'conversations' | 'users'>('conversations');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check authentication status
   const { isAuthenticated } = useAuthStatus();
 
-  // Socket hook
-  const {
-    isConnected,
-    isAuthenticated: isSocketAuthenticated,
-    isConnecting,
-    reconnectAttempts,
-    emit,
-    on,
-    off
-  } = useSocket();
+  // Socket connection status
+  const { isConnected, isAuthenticated: isSocketAuthenticated } = useSocketConnection();
 
-  // Scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Chat context for all chat-related functions
+  const {
+    state: chatState,
+    actions: chatActions
+  } = useChat();
+
+  const {
+    selectedConversation,
+    messages: allMessages,
+    conversations: chatConversations,
+    error: chatError
+  } = chatState;
+
+  const {
+    selectConversation,
+    joinConversation,
+    sendMessage,
+    startTyping,
+    stopTyping,
+    setConversations
+  } = chatActions;
+
+  // User search hook
+  const { data: userSearchData, isLoading: userSearchLoading } = useUserSearch({
+    query: userSearchQuery,
+    page: 1,
+    limit: 5,
+    enabled: !!userSearchQuery.trim() && userSearchQuery.trim().length >= 2 && searchType === 'users'
+  });
+
+  // Conversations hook
+  const { data: conversationsData, isLoading: conversationsLoading } = useConversations({
+    enabled: isAuthenticated
+  });
+
+  // Create private conversation hook
+  const createPrivateConversation = useCreatePrivateConversation();
+
+  // Update chat conversations when API data changes
+  useEffect(() => {
+    if (conversationsData?.data) {
+      setConversations(conversationsData.data);
+    }
+  }, [conversationsData, setConversations]);
+
+  // Auto-switch to user search if no conversations
+  useEffect(() => {
+    if (conversationsData?.data && conversationsData.data.length === 0 && !conversationsLoading) {
+      setSearchType('users');
+    }
+  }, [conversationsData, conversationsLoading]);
+
+  // Handle conversation selection
+  const handleSelectConversation = (conversationId: string) => {
+    // Usage: joinConversation('b9a6f809-bc49-4c9d-bcaa-8e205238bbcf');
+    selectConversation(conversationId);
+    joinConversation(conversationId);
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // Handle starting a conversation with a user
+  const handleStartConversation = async (userId: number, userName: string) => {
+    try {
+      const result = await createPrivateConversation.mutateAsync({ user_id: userId });
+      if (result.success) {
+        // Switch to the new conversation
+        handleSelectConversation(result.data.id);
+        // Switch back to conversations view
+        setSearchType('conversations');
+        // Clear user search
+        setUserSearchQuery('');
+      }
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+      // You can add toast notification here if you have a toast system
+    }
+  };
 
+  // Handle typing indicators based on input focus
+  const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessage(e.target.value);
+  };
 
-  const handleSendMessage = () => {
-    if (!message.trim() || !isConnected || !isSocketAuthenticated) return;
+  // Handle input focus - show typing indicator
+  const handleInputFocus = () => {
+    if (isConnected && isSocketAuthenticated && selectedConversation) {
+      console.log('⌨️ Input focused - showing typing indicator');
+      startTyping(selectedConversation);
+    }
+  };
 
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      userId: 'current-user', // This should come from auth store
-      username: 'You', // This should come from auth store
-      message: message.trim(),
-      timestamp: new Date(),
-      isOwn: true
-    };
+  // Handle input blur - hide typing indicator
+  const handleInputBlur = () => {
+    if (isConnected && isSocketAuthenticated && selectedConversation) {
+      console.log('⌨️ Input blurred - hiding typing indicator');
+      stopTyping(selectedConversation);
+    }
+  };
 
-    // Add message to local state
-    setMessages(prev => [...prev, newMessage]);
+  // Handle message input change (for the ChatMessages component)
+  const handleMessageChange = (message: string) => {
+    setMessage(message);
+  };
 
-    // Emit message to socket
-    emit('send_message', {
-      room: selectedChat,
-      message: message.trim(),
-      timestamp: new Date().toISOString()
-    });
+  // Handle sending message using the chat context
+  const handleSendMessage = async () => {
+    if (!message.trim() || !isConnected || !isSocketAuthenticated || !selectedConversation) return;
 
-    setMessage('');
+    try {
+      await sendMessage(selectedConversation, message.trim(), 'text');
+      setMessage('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      // You can add toast notification here if you have a toast system
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -97,6 +161,12 @@ export default function ChatPage() {
 
   const handleCloseAuthModal = () => {
     setAuthModalOpen(false);
+  };
+
+  // Get messages for selected conversation
+  const getCurrentMessages = () => {
+    if (!selectedConversation) return [];
+    return allMessages.get(selectedConversation) || [];
   };
 
   // Custom navigation configuration
@@ -124,32 +194,36 @@ export default function ChatPage() {
           initialMode={authMode}
         />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Controls */}
-          <div className="flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 mb-8">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search conversations..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-white/5 border-white/20 text-white placeholder:text-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20 w-64"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-white/20 text-white hover:bg-white/10"
-              >
-                <Users className="w-4 h-4 mr-2" />
-                Online Users
-              </Button>
+        {/* Chat Error Display */}
+        {chatError && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              {chatError}
             </div>
           </div>
+        )}
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Controls */}
+          <SearchControls
+            searchType={searchType}
+            searchQuery={searchQuery}
+            userSearchQuery={userSearchQuery}
+            onSearchTypeChange={setSearchType}
+            onSearchQueryChange={setSearchQuery}
+            onUserSearchQueryChange={setUserSearchQuery}
+          />
+
+          {/* User Search Results */}
+          {searchType === 'users' && (
+            <UserSearchResults
+              userSearchQuery={userSearchQuery}
+              userSearchData={userSearchData}
+              userSearchLoading={userSearchLoading}
+              createPrivateConversationPending={createPrivateConversation.isPending}
+              onStartConversation={handleStartConversation}
+            />
+          )}
 
           {/* Authentication Required Message */}
           {!isAuthenticated && (
@@ -179,139 +253,31 @@ export default function ChatPage() {
 
           {/* Chat Interface - Only show when authenticated */}
           {isAuthenticated && (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
               {/* Chat List */}
-              <div className="lg:col-span-1">
-                <Card className="border-0 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 border border-cyan-500/20">
-                  <CardHeader>
-                    <CardTitle className="text-white flex items-center justify-between">
-                      <span>Conversations</span>
-                      <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedChat === 'general'
-                            ? 'bg-cyan-500/20 border-cyan-500/30'
-                            : 'bg-white/5 border-white/10 hover:bg-white/10'
-                        }`}
-                        onClick={() => setSelectedChat('general')}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full flex items-center justify-center">
-                            <Users className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">General Chat</p>
-                            <p className="text-xs text-cyan-300">5 members online</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedChat === 'support'
-                            ? 'bg-cyan-500/20 border-cyan-500/30'
-                            : 'bg-white/5 border-white/10 hover:bg-white/10'
-                        }`}
-                        onClick={() => setSelectedChat('support')}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full flex items-center justify-center">
-                            <Users className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">Support Team</p>
-                            <p className="text-xs text-blue-300">2 members online</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <ConversationsList
+                conversationsData={conversationsData}
+                conversationsLoading={conversationsLoading}
+                selectedChat={selectedConversation || ''}
+                onSelectChat={handleSelectConversation}
+                onSearchUsers={() => setSearchType('users')}
+              />
 
               {/* Chat Messages */}
-              <div className="lg:col-span-3">
-                <Card className="border-0 bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 border border-cyan-500/20 h-96">
-                  <CardHeader className="border-b border-white/10">
-                    <CardTitle className="text-white capitalize">{selectedChat} Chat</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="h-64 overflow-y-auto p-4 space-y-4">
-                      {messages.length === 0 ? (
-                        /* Welcome Message */
-                        <div className="text-center py-8">
-                          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-cyan-500/30">
-                            <MessageCircle className="w-8 h-8 text-cyan-400" />
-                          </div>
-                          <h3 className="text-lg font-medium text-white mb-2">Welcome to {selectedChat} Chat!</h3>
-                          <p className="text-gray-400">
-                            {isConnected && isSocketAuthenticated
-                              ? 'Start typing to send a message'
-                              : 'Connecting to chat server...'
-                            }
-                          </p>
-                        </div>
-                      ) : (
-                        /* Messages */
-                        messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex ${msg.isOwn ? 'justify-end' : 'justify-start'}`}
-                          >
-                            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                              msg.isOwn
-                                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white'
-                                : msg.userId === 'system'
-                                  ? 'bg-gray-500/20 text-gray-300 border border-gray-500/30'
-                                  : 'bg-white/10 text-white border border-white/20'
-                            }`}>
-                              {msg.userId !== 'system' && (
-                                <p className="text-xs opacity-75 mb-1">{msg.username}</p>
-                              )}
-                              <p className="text-sm">{msg.message}</p>
-                              <p className="text-xs opacity-75 mt-1 text-right">
-                                {msg.timestamp.toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Message Input */}
-                    <div className="border-t border-white/10 p-4">
-                      <div className="flex space-x-3">
-                        <Input
-                          placeholder={
-                            isConnected && isSocketAuthenticated
-                              ? "Type your message..."
-                              : "Connecting to chat..."
-                          }
-                          value={message}
-                          onChange={(e) => setMessage(e.target.value)}
-                          onKeyPress={handleKeyPress}
-                          disabled={!isConnected || !isSocketAuthenticated}
-                          className="flex-1 bg-white/5 border-white/20 text-white placeholder:text-gray-400 focus:border-cyan-400 focus:ring-cyan-400/20 disabled:opacity-50"
-                        />
-                        <Button
-                          onClick={handleSendMessage}
-                          disabled={!message.trim() || !isConnected || !isSocketAuthenticated}
-                          className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white shadow-lg shadow-cyan-500/25 disabled:opacity-50"
-                        >
-                          <Send className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              <ChatMessages
+                selectedChat={selectedConversation || ''}
+                conversationsData={conversationsData}
+                messages={getCurrentMessages()}
+                message={message}
+                isConnected={isConnected}
+                isSocketAuthenticated={isSocketAuthenticated}
+                onMessageChange={handleMessageChange}
+                onSendMessage={handleSendMessage}
+                onKeyPress={handleKeyPress}
+                onInputFocus={handleInputFocus}
+                onInputBlur={handleInputBlur}
+                typingUsers={chatActions.getTypingUsers(selectedConversation || '')}
+              />
             </div>
           )}
         </div>

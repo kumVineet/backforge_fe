@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Code, Menu, X, User, LogOut, LogIn } from "lucide-react";
+import { Code, Menu, X, User, LogOut, LogIn, MessageCircle } from "lucide-react";
 import { useState, useCallback, useEffect } from "react";
 import { AuthModal } from "@/components/auth";
 import { usePathname } from "next/navigation";
@@ -39,8 +39,8 @@ export function Navigation({ customization }: NavigationProps) {
   // Only connect to socket on pages that need it (like chat)
   const isSocketPage = pathname === "/chat";
   const socketHook = isSocketPage ? useSocket() : null;
-  const isConnected = socketHook?.isConnected || false;
-  const isSocketAuthenticated = socketHook?.isAuthenticated || false;
+  const isConnected = socketHook?.state.isConnected || false;
+  const isSocketAuthenticated = socketHook?.state.isAuthenticated || false;
 
   const isHomePage = pathname === "/";
   const hasCustomization = !!customization;
@@ -322,6 +322,47 @@ export function Navigation({ customization }: NavigationProps) {
                       Sign In
                     </Button>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Navigation Menu for Authenticated Users on Other Pages */}
+          {mobileMenuOpen && isAuthenticated && !isHomePage && (
+            <div className="md:hidden border-t border-white/10 bg-black/40 backdrop-blur-xl">
+              <div className="px-2 pt-2 pb-3 space-y-1">
+                <Link
+                  href="/profile"
+                  className="flex items-center space-x-3 px-3 py-2 text-gray-300 hover:text-cyan-400 transition-colors duration-300 font-medium"
+                >
+                  <User className="w-5 h-5" />
+                  <span>Profile</span>
+                </Link>
+                <Link
+                  href="/gallery"
+                  className="flex items-center space-x-3 px-3 py-2 text-gray-300 hover:text-cyan-400 transition-colors duration-300 font-medium"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>Gallery</span>
+                </Link>
+                <Link
+                  href="/chat"
+                  className="flex items-center space-x-3 px-3 py-2 text-gray-300 hover:text-cyan-400 transition-colors duration-300 font-medium"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span>Chat</span>
+                </Link>
+                <div className="pt-2 border-t border-white/10">
+                  <Button
+                    onClick={handleLogout}
+                    variant="outline"
+                    className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Log out
+                  </Button>
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 import { config } from "./config";
 import { authEndpoints } from "./endpoints";
+import { useAuthStore } from "./auth-store";
 
 // Helper function to get token from localStorage (where Zustand persists)
 const getAuthToken = (): string | null => {
@@ -103,37 +104,28 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle token expiration (401 with TOKEN_EXPIRED code)
+    // Handle token expiration (401 with specific error message)
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Check if it's specifically a token expiration error
       const isTokenExpired = error.response?.data?.code === 'TOKEN_EXPIRED' ||
-                            error.response?.data?.message?.includes('expired');
+                            error.response?.data?.message?.includes('expired') ||
+                            error.response?.data?.message?.includes('Access token has expired');
 
       if (isTokenExpired) {
         originalRequest._retry = true;
 
         try {
-          // Get refresh token from localStorage
-          const refreshToken = getRefreshToken();
-          if (refreshToken) {
-            // Call the refresh endpoint with the exact structure you specified
-            const response = await fetch(`${config.api.baseUrl}/api/v1/auth/refresh`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ refreshToken })
-            });
+          // Use the auth store's refreshAuthToken method
+          const authStore = useAuthStore.getState();
+          const refreshSuccess = await authStore.refreshAuthToken();
 
-            if (response.ok) {
-              const data = await response.json();
-
-              if (data.accessToken) {
-                // Update both tokens in localStorage
-                updateTokensInStore(data.accessToken, data.refreshToken);
-
-                // Update the request headers and retry
-                originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
-                return apiClient(originalRequest);
-              }
+          if (refreshSuccess) {
+            // Get the new token from the store
+            const newToken = useAuthStore.getState().accessToken;
+            if (newToken) {
+              // Update the request headers and retry
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return apiClient(originalRequest);
             }
           }
         } catch (refreshError) {
@@ -142,8 +134,14 @@ apiClient.interceptors.response.use(
       }
 
       // If refresh failed or no refresh token, clear auth data and redirect to login
-      clearAuthData();
-      window.location.href = "/";
+      const authStore = useAuthStore.getState();
+      authStore.logout();
+
+      // Redirect to home page (which should show login)
+      if (typeof window !== 'undefined') {
+        window.location.href = "/";
+      }
+
       return Promise.reject(error);
     }
 

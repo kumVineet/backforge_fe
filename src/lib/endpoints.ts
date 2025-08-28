@@ -9,6 +9,7 @@ export const API_VERSIONS = {
   notifications: "v1",
   files: "v2",
   reports: "v3",
+  conversations: "v1",
   // Add more API groups as needed
 } as const;
 
@@ -56,6 +57,14 @@ export const userEndpoints = {
       ? `?${new URLSearchParams(filters).toString()}`
       : "";
     return buildApiUrl(`/users${queryParams}`, "users");
+  },
+  search: (query: string, page: number = 1, limit: number = 10) => {
+    const searchParams = new URLSearchParams({
+      q: query,
+      page: page.toString(),
+      limit: limit.toString()
+    });
+    return buildApiUrl(`/users/search?${searchParams.toString()}`, "users");
   },
   detail: (id: string | number) => buildApiUrl(`/users/${id}`, "users"),
   create: () => buildApiUrl("/users", "users"),
@@ -135,6 +144,16 @@ export const fileEndpoints = {
   copy: (id: string | number) => buildApiUrl(`/files/${id}/copy`, "files"),
 } as const;
 
+// Conversation endpoints
+export const conversationEndpoints = {
+  list: () => buildApiUrl("/conversations", "conversations"),
+  detail: (id: string) => buildApiUrl(`/conversations/${id}`, "conversations"),
+  create: () => buildApiUrl("/conversations", "conversations"),
+  createPrivate: () => buildApiUrl("/conversations/private", "conversations"),
+  update: (id: string) => buildApiUrl(`/conversations/${id}`, "conversations"),
+  delete: (id: string) => buildApiUrl(`/conversations/${id}`, "conversations"),
+} as const;
+
 // Report endpoints (v3)
 export const reportEndpoints = {
   generate: () => buildApiUrl("/reports/generate", "reports"),
@@ -185,6 +204,7 @@ export const endpoints = {
   notifications: notificationEndpoints,
   files: fileEndpoints,
   reports: reportEndpoints,
+  conversations: conversationEndpoints,
   // Generic resource endpoints
   createResource: createResourceEndpoints,
 } as const;

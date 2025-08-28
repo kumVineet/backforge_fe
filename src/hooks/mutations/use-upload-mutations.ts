@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
+import apiClient from '@/lib/api-client';
 import { uploadKeys, UploadFile } from '@/hooks/queries/use-uploads';
 
 // Function to determine file category based on MIME type
@@ -39,19 +40,19 @@ export const useUploadFile = () => {
         const { presignedUrl, s3Key } = presignedResponse.data;
 
         // Step 2: Upload file to S3 using presigned URL
-        const uploadResponse = await fetch(presignedUrl, {
-          method: 'PUT',
-          body: file,
+        const uploadResponse = await apiClient.put(presignedUrl, file, {
+          headers: {
+            'Content-Type': file.type,
+          },
         });
 
-        if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
+        if (uploadResponse.status !== 200) {
           console.error('S3 upload failed:', {
             status: uploadResponse.status,
             statusText: uploadResponse.statusText,
-            response: errorText
+            response: uploadResponse.data
           });
-          throw new Error(`S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText} - ${errorText}`);
+          throw new Error(`S3 upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
         }
 
         // Step 3: Store metadata in our database

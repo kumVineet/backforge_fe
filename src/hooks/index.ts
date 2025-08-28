@@ -4,6 +4,8 @@ export * from "./use-auth-status";
 
 // Weather hooks
 export * from "./use-weather";
+
+// Socket hooks (backward compatibility)
 export * from "./use-socket";
 
 // Query hooks
